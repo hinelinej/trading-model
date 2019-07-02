@@ -1,4 +1,4 @@
-# Trading Model
+# [Trading Model](https://github.com/bgoetz/trading-model)
 
 Models financial trading histories for differing symbols.
 
