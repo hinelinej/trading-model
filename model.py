@@ -1,9 +1,10 @@
 import random
 import json
         
-# Percent chance that a given symbol's growth wedge will invert (ascending vs descending).
-# This progressively increases until the wedge is inverted.
-INVERSION_PROGRESSION_CHANCE = .225 
+# The probability of wedge inversion increases relative to the previous wedge's performance,
+# to model how perception affects future trading. This multiplies that perception to increase
+# or reduce the inversion chance.
+INVERSION_PROGRESSION_MULTIPLIER = .5 
 
 # These determine the range of slopes that can be generated for the wedges; measured in basis points.
 MINOR_SLOPE_MINIMUM = 200 # 2%
@@ -12,8 +13,8 @@ MODERATE_SLOPE_MINIMUM = 400 # 4%
 MODERATE_SLOPE_MAXIMUM = 1200 # 12%
 
 # These determine the range of heights of the left side of the wedges; measured in basis points
-WEDGE_START_MINIMUM = 300 # 3%
-WEDGE_START_MAXIMUM = 600 # 6%
+WEDGE_START_MINIMUM = 600 # 3%
+WEDGE_START_MAXIMUM = 1200 # 6%
 
 # These determine the range of durations a given wedge can have; measured in days
 WEDGE_DURATION_MINIMUM = 10
@@ -31,6 +32,9 @@ class Symbol(object):
         # Set up the starting price
         self.current_price = 1. * random.randrange(MINIMUM_STARTING_PRICE, MAXIMUM_STARTING_PRICE)
         self.history = [self.current_price]
+
+        # This is the starting price for the current wedge
+        self.current_wedge_starting_price = self.current_price
 
         # Generate the first wedge
         self.inversion_chance = 0.
@@ -65,6 +69,7 @@ class Symbol(object):
         # Then generate the maxima and minima for each tick
         self.maxima = [upper_boundary_start + (upper_boundary_delta * tick / duration) for tick in range(1, duration + 1)]
         self.minima = [lower_boundary_start + (lower_boundary_delta * tick / duration) for tick in range(1, duration + 1)]
+        
 
     # Updates the value of this symbol according to its wedge, regenerating the wedge
     # if necessary.
@@ -81,8 +86,14 @@ class Symbol(object):
 
         # We finished out this wedge so generate a new one. First we need to check for inversion.
         if len(self.maxima) == 0:
-            self.inversion_chance += INVERSION_PROGRESSION_CHANCE
-            if self.inversion_chance >= random.randrange(0, 1 / INVERSION_PROGRESSION_CHANCE**2, 1, float):
+            # Regardless of the wedge direction, we increase the inversion chance based on how well
+            # this wedge performed. We are using perception of growth rather than growth / loss.
+            if self.current_wedge_starting_price > self.history[-1]:
+                self.inversion_chance += (self.current_wedge_starting_price / self.history[-1] - 1) * INVERSION_PROGRESSION_MULTIPLIER
+            else:
+                self.inversion_chance += (self.history[-1] / self.current_wedge_starting_price - 1) * INVERSION_PROGRESSION_MULTIPLIER
+            
+            if self.inversion_chance >= random.randrange(0, 1000) / 1000.:
                 # We are inverting the wedge
                 self.wedge_direction = not self.wedge_direction
 
@@ -91,6 +102,8 @@ class Symbol(object):
 
             # Regnerate the wedge
             self.generateWedge()
+
+        self.current_wedge_starting_price = self.history[-1]
 
 # generates the output HTML
 def generateHTML(symbols):
@@ -197,7 +210,7 @@ def generateSymbols(count):
 symbols = generateSymbols(3)
 
 # Generate some data
-for tick in range(10000):
+for tick in range(5000):
     for symbol in symbols:
         symbol.update()
 
